@@ -89,6 +89,7 @@ export default function Whiteboard() {
         color={color}
         socket={socket}
         roomId={roomId}
+        username={username}
       />
 
       {/* UI Overlay */}
@@ -134,6 +135,7 @@ export default function Whiteboard() {
         isOpen={isSidebarOpen} 
         onClose={() => setIsSidebarOpen(false)} 
         users={users} 
+        localSocketId={socket.id}
       />
 
       {/* Toasts */}

@@ -1,7 +1,7 @@
 import React from 'react';
 import { X, User, Circle } from 'lucide-react';
 
-export default function UsersSidebar({ isOpen, onClose, users }) {
+export default function UsersSidebar({ isOpen, onClose, users, localSocketId }) {
   return (
     <div 
       className={`fixed top-0 right-0 h-full w-72 glass shadow-2xl z-50 transform transition-transform duration-300 ease-in-out border-l border-white/40 flex flex-col ${
@@ -34,8 +34,10 @@ export default function UsersSidebar({ isOpen, onClose, users }) {
             const color = colors[colorIndex];
             const initials = user.username.substring(0, 2).toUpperCase();
 
+            const isLocal = user.socketId === localSocketId;
+
             return (
-              <div key={user.socketId || idx} className="flex items-center space-x-4 bg-white/60 p-3 rounded-xl border border-white/60 shadow-sm transition-all hover:bg-white/80">
+              <div key={user.socketId || idx} className={`flex items-center space-x-4 p-3 rounded-xl border shadow-sm transition-all ${isLocal ? 'bg-indigo-50/80 border-indigo-200' : 'bg-white/60 border-white/60 hover:bg-white/80'}`}>
                 <div 
                   className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-sm shadow-md"
                   style={{ backgroundColor: color }}
@@ -43,8 +45,10 @@ export default function UsersSidebar({ isOpen, onClose, users }) {
                   {initials}
                 </div>
                 <div className="flex-1 truncate">
-                  <p className="font-semibold text-slate-700 truncate">{user.username}</p>
-                  <p className="text-xs text-slate-400 flex items-center space-x-1 mt-0.5">
+                  <p className={`font-semibold truncate ${isLocal ? 'text-indigo-900' : 'text-slate-700'}`}>
+                    {user.username} {isLocal && <span className="text-xs text-indigo-500 font-normal ml-1">(You)</span>}
+                  </p>
+                  <p className="text-xs flex items-center space-x-1 mt-0.5 text-slate-400">
                     <Circle size={8} className="text-success fill-success" />
                     <span>Online</span>
                   </p>

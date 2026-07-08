@@ -19,11 +19,13 @@ const getSvgPathFromStroke = (stroke) => {
 // Distance helper for eraser
 const dist = (p1, p2) => Math.sqrt(Math.pow(p2[0] - p1[0], 2) + Math.pow(p2[1] - p1[1], 2));
 
-const Canvas = forwardRef(({ activeTool, strokeWidth, color, socket, roomId }, ref) => {
+const Canvas = forwardRef(({ activeTool, strokeWidth, color, socket, roomId, username }, ref) => {
   const [history, setHistory] = useState([[]]);
   const [historyStep, setHistoryStep] = useState(0);
   const [currentElement, setCurrentElement] = useState(null);
   const [remoteElements, setRemoteElements] = useState({});
+  const [remoteCursors, setRemoteCursors] = useState({});
+  const [localPointer, setLocalPointer] = useState(null);
   const svgRef = useRef(null);
   
   const currentLines = history[historyStep] || [];
@@ -65,12 +67,17 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, socket, roomId }, r
       setHistoryStep((prev) => prev + 1);
     });
 
+    socket.on('cursor-update', ({ socketId, pointer, username, color }) => {
+      setRemoteCursors((prev) => ({ ...prev, [socketId]: { pointer, username, color } }));
+    });
+
     return () => {
       socket.off('sync-response');
       socket.off('draw-progress');
       socket.off('draw-end');
       socket.off('element-added');
       socket.off('elements-updated');
+      socket.off('cursor-update');
     };
   }, [socket, roomId]);
 
@@ -181,8 +188,14 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, socket, roomId }, r
   };
 
   const handlePointerMove = (e) => {
-    if (e.buttons !== 1) return;
     const point = [e.clientX, e.clientY, e.pressure || 0.5];
+    setLocalPointer(point);
+
+    if (socket && roomId) {
+      socket.emit('cursor-move', { roomId, pointer: point, username, color });
+    }
+
+    if (e.buttons !== 1) return;
 
     if (activeTool === 'eraser') {
       eraseAtPoint(point);
@@ -231,11 +244,9 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, socket, roomId }, r
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerCancel={handlePointerUp}
+      onPointerLeave={() => setLocalPointer(null)}
       style={{
-        cursor: activeTool === 'hand' ? 'grab' 
-              : activeTool === 'selection' ? 'default' 
-              : activeTool === 'eraser' ? 'cell'
-              : 'crosshair'
+        cursor: 'none'
       }}
     >
       <defs>
@@ -293,6 +304,45 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, socket, roomId }, r
         }
         return null;
       })}
+      
+      {/* Remote Cursors */}
+      {Object.entries(remoteCursors).map(([id, cursor]) => (
+        <g 
+          key={id} 
+          transform={`translate(${cursor.pointer[0]}, ${cursor.pointer[1]})`} 
+          className="transition-transform duration-75 ease-out pointer-events-none"
+        >
+          {/* Custom Cursor Pointer SVG */}
+          <path d="M0,0 L20,10 L10,13 L6,22 Z" fill={cursor.color} stroke="white" strokeWidth="2" />
+          
+          <foreignObject x="10" y="20" width="150" height="40">
+            <div 
+              className="inline-block px-2 py-1 rounded-md text-white text-xs font-bold shadow-md whitespace-nowrap" 
+              style={{ backgroundColor: cursor.color }}
+            >
+              {cursor.username}
+            </div>
+          </foreignObject>
+        </g>
+      ))}
+
+      {/* Local Cursor */}
+      {localPointer && (
+        <g 
+          transform={`translate(${localPointer[0]}, ${localPointer[1]})`} 
+          className="pointer-events-none"
+        >
+          <path d="M0,0 L20,10 L10,13 L6,22 Z" fill={color} stroke="white" strokeWidth="2" />
+          <foreignObject x="10" y="20" width="150" height="40">
+            <div 
+              className="inline-block px-2 py-1 rounded-md text-white text-xs font-bold shadow-md whitespace-nowrap" 
+              style={{ backgroundColor: color }}
+            >
+              {username} (You)
+            </div>
+          </foreignObject>
+        </g>
+      )}
     </svg>
   );
 });

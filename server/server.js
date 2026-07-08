@@ -64,6 +64,10 @@ io.on("connection", (socket) => {
 
     // --- Canvas Events ---
 
+    socket.on("cursor-move", ({ roomId, pointer, username, color }) => {
+        socket.to(roomId).emit("cursor-update", { socketId: socket.id, pointer, username, color });
+    });
+
     socket.on("sync-request", ({ roomId }) => {
         if (!roomCanvas[roomId]) {
             roomCanvas[roomId] = [];
