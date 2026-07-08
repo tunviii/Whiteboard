@@ -162,16 +162,22 @@ export default function FloatingToolbar({
               {/* Font Size */}
               <div className="flex flex-col space-y-2">
                 <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Size</span>
-                <div className="flex space-x-1">
-                  {[{label: 'S', val: 16}, {label: 'M', val: 24}, {label: 'L', val: 32}, {label: 'XL', val: 48}].map(size => (
-                    <button
-                      key={size.label}
-                      onClick={() => onFontSizeChange?.(size.val)}
-                      className={`w-8 h-8 rounded-lg text-sm font-bold flex items-center justify-center transition-colors ${fontSize === size.val ? 'bg-primary text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                    >
-                      {size.label}
-                    </button>
-                  ))}
+                <div className="flex items-center">
+                  <input 
+                    type="number" 
+                    list="fontSizeOptions"
+                    value={fontSize}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value);
+                      if (!isNaN(val) && val > 0) onFontSizeChange?.(val);
+                    }}
+                    className="w-20 px-2 h-8 rounded-lg border border-border bg-slate-50 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/50 text-slate-700"
+                  />
+                  <datalist id="fontSizeOptions">
+                    {[12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 72].map(size => (
+                      <option key={size} value={size} />
+                    ))}
+                  </datalist>
                 </div>
               </div>
               
