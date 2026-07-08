@@ -258,8 +258,8 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, fontSize, fontFamil
       if (selectedElementIndex !== null) {
         const el = currentLines[selectedElementIndex];
         if (el && (el.type === 'text' || el.type === 'sticky')) {
-          const w = el.width || (el.type === 'sticky' ? 250 : 300);
-          const h = el.height || (el.type === 'sticky' ? 250 : 100);
+          const w = el.width || (el.type === 'sticky' ? 250 : 150);
+          const h = el.height || (el.type === 'sticky' ? 250 : 40);
           const handles = {
             'tl': [el.x, el.y],
             'tr': [el.x + w, el.y],
@@ -351,8 +351,8 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, fontSize, fontFamil
         type: activeTool,
         x: point[0],
         y: point[1],
-        width: activeTool === 'sticky' ? 250 : 300,
-        height: activeTool === 'sticky' ? 250 : 100,
+        width: activeTool === 'sticky' ? 250 : 150,
+        height: activeTool === 'sticky' ? 250 : 40,
         text: '',
         color: color,
         fontSize: fontSize,
@@ -430,11 +430,14 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, fontSize, fontFamil
       const dx = point[0] - resizeState.initialPointer[0];
       const dy = point[1] - resizeState.initialPointer[1];
       
-      // Calculate a scale factor based on diagonal distance
-      // For bottom-right, positive dx/dy increases scale
-      const sign = (resizeState.handle === 'br' || resizeState.handle === 'bl') ? 1 : -1;
-      const dragDist = (dx + dy) / 2; // simplified diagonal drag
-      const scale = Math.max(0.2, 1 + (dragDist * sign / 100));
+      // Calculate a scale factor based on drag distance for the specific handle
+      let dragDist = 0;
+      if (resizeState.handle === 'br') dragDist = (dx + dy) / 2;
+      else if (resizeState.handle === 'bl') dragDist = (-dx + dy) / 2;
+      else if (resizeState.handle === 'tr') dragDist = (dx - dy) / 2;
+      else if (resizeState.handle === 'tl') dragDist = (-dx - dy) / 2;
+      
+      const scale = Math.max(0.2, 1 + (dragDist / 100));
       
       el.fontSize = Math.max(8, Math.round(resizeState.initialFontSize * scale));
       el.width = Math.max(50, resizeState.initialWidth * scale);
@@ -634,7 +637,7 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, fontSize, fontFamil
               if (tool === 'arrow') return <line key={i} x1={start[0]} y1={start[1]} x2={end[0]} y2={end[1]} stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" markerEnd="url(#arrowhead)" />;
             } else if (el.type === 'text') {
               return (
-                <foreignObject key={i} x={el.x} y={el.y} width={el.width || 300} height={el.height || 100} style={{ pointerEvents: 'none' }}>
+                <foreignObject key={i} x={el.x} y={el.y} width={el.width || 150} height={el.height || 40} style={{ pointerEvents: 'none' }}>
                   <div 
                     className="w-full h-full select-none cursor-none overflow-hidden" 
                     style={{ 
@@ -687,8 +690,8 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, fontSize, fontFamil
           {/* Render Selection Bounding Box & Handles */}
           {selectedElementIndex !== null && currentLines[selectedElementIndex] && (currentLines[selectedElementIndex].type === 'text' || currentLines[selectedElementIndex].type === 'sticky') && (() => {
             const el = currentLines[selectedElementIndex];
-            const w = el.width || (el.type === 'sticky' ? 250 : 300);
-            const h = el.height || (el.type === 'sticky' ? 250 : 100);
+            const w = el.width || (el.type === 'sticky' ? 250 : 150);
+            const h = el.height || (el.type === 'sticky' ? 250 : 40);
             return (
               <g pointerEvents="none">
                 <rect x={el.x} y={el.y} width={w} height={h} fill="none" stroke="#3B82F6" strokeWidth="2" strokeDasharray="4" />
@@ -728,8 +731,8 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, fontSize, fontFamil
           className="absolute top-0 left-0 z-40 origin-top-left"
           style={{ 
             transform: `translate(${pan.x + editingElement.x * zoom}px, ${pan.y + editingElement.y * zoom}px) scale(${zoom})`,
-            width: `${editingElement.width || (editingElement.type === 'sticky' ? 250 : 300)}px`,
-            height: `${editingElement.height || (editingElement.type === 'sticky' ? 250 : 100)}px`
+            width: `${editingElement.width || (editingElement.type === 'sticky' ? 250 : 150)}px`,
+            height: `${editingElement.height || (editingElement.type === 'sticky' ? 250 : 40)}px`
           }}
           onPointerDown={(e) => e.stopPropagation()} // Stop bubbling to SVG container
         >
@@ -743,7 +746,15 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, fontSize, fontFamil
                 fontFamily: editingElement.fontFamily || 'Inter, sans-serif'
               }}
               value={editingElement.text}
-              onChange={(e) => setEditingElement({ ...editingElement, text: e.target.value })}
+              onChange={(e) => {
+                const target = e.target;
+                setEditingElement({ 
+                  ...editingElement, 
+                  text: target.value,
+                  width: Math.max(editingElement.width || 150, target.scrollWidth),
+                  height: Math.max(editingElement.height || 40, target.scrollHeight)
+                });
+              }}
               onKeyDown={(e) => { if(e.key === 'Escape') { finalizeEditingElement(); } }}
               placeholder="Enter text..."
             />
