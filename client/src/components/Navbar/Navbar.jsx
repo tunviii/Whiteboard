@@ -12,7 +12,7 @@ export default function Navbar() {
         <header className="h-16 bg-white border-b shadow-sm px-8 flex items-center justify-between">
 
     <h1 className="text-3xl font-bold text-indigo-600">
-        🎨 Collaborative Whiteboard
+        🎨 DoodleBoard
     </h1>
 
     <div className="flex gap-4 items-center">

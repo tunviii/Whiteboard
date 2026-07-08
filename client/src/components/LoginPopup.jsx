@@ -54,7 +54,7 @@ export default function LoginPopup({ onJoinRoom }) {
         </div>
 
         <h1 className="text-2xl md:text-3xl font-bold text-center mb-2 bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-          Collaborative Whiteboard
+          DoodleBoard
         </h1>
         <p className="text-center text-slate-500 mb-8 font-medium">
           Draw. Brainstorm. Collaborate.<br />

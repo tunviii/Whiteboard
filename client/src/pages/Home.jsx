@@ -42,7 +42,7 @@ export default function Home() {
       <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8">
 
         <h1 className="text-4xl font-bold text-center text-slate-800">
-          Collaborative Whiteboard
+          DoodleBoard
         </h1>
 
         <p className="text-center text-slate-500 mt-3">
