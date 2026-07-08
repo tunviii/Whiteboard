@@ -26,6 +26,10 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, socket, roomId, use
   const [remoteCursors, setRemoteCursors] = useState({});
   const [localPointer, setLocalPointer] = useState(null);
   
+  // Dragging State
+  const [draggingElementIndex, setDraggingElementIndex] = useState(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  
   // Infinite Canvas State
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -234,9 +238,50 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, socket, roomId, use
       return;
     }
     
-    if (activeTool === 'selection') return;
-    
     const point = getPointerPosition(e);
+
+    // If selection tool is active, attempt to select an element for dragging
+    if (activeTool === 'selection') {
+      // Find the top-most element that intersects the click point
+      const clickedIndex = currentLines.findLastIndex(line => {
+        if (line.type === 'freehand') {
+          // Bounding box for freehand to make selecting easier
+          if (!line.points || line.points.length === 0) return false;
+          const minX = Math.min(...line.points.map(p => p[0]));
+          const maxX = Math.max(...line.points.map(p => p[0]));
+          const minY = Math.min(...line.points.map(p => p[1]));
+          const maxY = Math.max(...line.points.map(p => p[1]));
+          return point[0] >= minX - 10 && point[0] <= maxX + 10 && point[1] >= minY - 10 && point[1] <= maxY + 10;
+        } else if (line.type === 'shape') {
+          const minX = Math.min(line.start[0], line.end[0]);
+          const maxX = Math.max(line.start[0], line.end[0]);
+          const minY = Math.min(line.start[1], line.end[1]);
+          const maxY = Math.max(line.start[1], line.end[1]);
+          return point[0] >= minX - 10 && point[0] <= maxX + 10 && point[1] >= minY - 10 && point[1] <= maxY + 10;
+        } else if (line.type === 'text' || line.type === 'sticky' || line.type === 'image') {
+          const w = line.width || (line.type === 'sticky' ? 250 : 200);
+          const h = line.height || (line.type === 'sticky' ? 250 : 100);
+          return point[0] >= line.x && point[0] <= line.x + w && point[1] >= line.y && point[1] <= line.y + h;
+        }
+        return false;
+      });
+
+      if (clickedIndex !== -1) {
+        e.target.setPointerCapture(e.pointerId);
+        setDraggingElementIndex(clickedIndex);
+        const el = currentLines[clickedIndex];
+        
+        // Calculate offset based on element type
+        if (el.type === 'text' || el.type === 'sticky' || el.type === 'image') {
+          setDragOffset({ x: point[0] - el.x, y: point[1] - el.y });
+        } else if (el.type === 'shape') {
+          setDragOffset({ x: point[0] - el.start[0], y: point[1] - el.start[1] });
+        } else if (el.type === 'freehand') {
+          setDragOffset({ x: point[0] - el.points[0][0], y: point[1] - el.points[0][1] });
+        }
+      }
+      return;
+    }
     
     if (activeTool === 'text' || activeTool === 'sticky') {
       e.preventDefault(); // Prevent browser focus shift on mouseup
@@ -300,15 +345,52 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, socket, roomId, use
   };
 
   const handlePointerMove = (e) => {
-    const rawPoint = [e.clientX, e.clientY];
-    setLocalPointer(rawPoint);
-
-    if (isPanning && e.buttons !== 0) {
-      setPan(prev => ({ x: prev.x + e.movementX, y: prev.y + e.movementY }));
+    const point = getPointerPosition(e);
+    
+    if (isPanning) {
+      setPan({
+        x: pan.x + e.movementX,
+        y: pan.y + e.movementY
+      });
       return;
     }
 
-    const point = getPointerPosition(e);
+    if (draggingElementIndex !== null) {
+      // Calculate new position
+      const newLines = [...currentLines];
+      const el = { ...newLines[draggingElementIndex] };
+      
+      const dx = point[0] - dragOffset.x;
+      const dy = point[1] - dragOffset.y;
+
+      if (el.type === 'text' || el.type === 'sticky' || el.type === 'image') {
+        el.x = dx;
+        el.y = dy;
+      } else if (el.type === 'shape') {
+        const shapeDx = dx - el.start[0];
+        const shapeDy = dy - el.start[1];
+        el.start = [dx, dy];
+        el.end = [el.end[0] + shapeDx, el.end[1] + shapeDy];
+      } else if (el.type === 'freehand') {
+        const fDx = dx - el.points[0][0];
+        const fDy = dy - el.points[0][1];
+        el.points = el.points.map(p => [p[0] + fDx, p[1] + fDy, p[2]]);
+      }
+
+      newLines[draggingElementIndex] = el;
+      
+      // Temporarily update state for fast local rendering without hitting the undo stack yet
+      const newHistory = [...history];
+      newHistory[historyStep] = newLines;
+      setHistory(newHistory);
+
+      if (socket && roomId) {
+        socket.emit('update-elements', { roomId, elements: newLines });
+      }
+      return;
+    }
+
+    setLocalPointer(point);
     if (socket && roomId) {
       socket.emit('cursor-move', { roomId, pointer: point, username, color: identityColor });
     }
@@ -340,6 +422,19 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, socket, roomId, use
       setIsPanning(false);
       return;
     }
+    
+    if (draggingElementIndex !== null) {
+      // Releasing drag creates a new history step to allow undoing the drag
+      const newHistory = history.slice(0, historyStep);
+      newHistory.push(currentLines);
+      setHistory(newHistory);
+      setHistoryStep(newHistory.length - 1);
+      
+      setDraggingElementIndex(null);
+      e.target.releasePointerCapture(e.pointerId);
+      return;
+    }
+    
     if (!currentElement) return;
     
     if (socket && roomId) {
