@@ -16,7 +16,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
     cors: {
-        origin: "http://localhost:5173",
+        origin: "*", // Allows any frontend URL to connect (useful for separate deployments)
         methods: ["GET", "POST"]
     }
 });
@@ -143,6 +143,7 @@ io.on("connection", (socket) => {
     });
 });
 
-server.listen(5000, () => {
-    console.log("Server running on port 5000");
+const port = process.env.PORT || 5000;
+server.listen(port, () => {
+    console.log(`Server running on port ${port}`);
 });
