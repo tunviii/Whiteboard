@@ -71,6 +71,10 @@ export default function Whiteboard() {
 
   const handleUndo = () => canvasRef.current?.undo();
   const handleRedo = () => canvasRef.current?.redo();
+  const handleCancelEdit = () => {
+    canvasRef.current?.cancelEdit();
+    setActiveTool('selection');
+  };
   const handleExport = () => {
     canvasRef.current?.exportAsPNG();
     addToast('Export started', 'success');
@@ -137,6 +141,12 @@ export default function Whiteboard() {
           onUndo={handleUndo}
           onRedo={handleRedo}
           onExport={handleExport}
+          onCancelEdit={handleCancelEdit}
+          onImageUpload={(file) => {
+            if (canvasRef.current) {
+              canvasRef.current.addImage(file);
+            }
+          }}
         />
       </div>
 
