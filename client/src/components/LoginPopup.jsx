@@ -1,19 +1,36 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Palette, Sparkles, Paintbrush, Brush } from 'lucide-react';
 
 export default function LoginPopup({ onJoinRoom }) {
   const [name, setName] = useState('');
   const [roomId, setRoomId] = useState('');
+  const [userId, setUserId] = useState('');
+
+  useEffect(() => {
+    // Generate or retrieve persistent user identity
+    let storedUserId = sessionStorage.getItem('whiteboard_userId');
+    const storedName = sessionStorage.getItem('whiteboard_username');
+
+    if (!storedUserId) {
+      storedUserId = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      sessionStorage.setItem('whiteboard_userId', storedUserId);
+    }
+
+    setUserId(storedUserId);
+    if (storedName) setName(storedName);
+  }, []);
 
   const handleCreate = () => {
     if (!name) return;
+    sessionStorage.setItem('whiteboard_username', name.trim());
     const newRoomId = Math.random().toString(36).substring(2, 9);
-    onJoinRoom({ name, roomId: newRoomId, isCreator: true });
+    onJoinRoom({ name, roomId: newRoomId, isCreator: true, userId });
   };
 
   const handleJoin = () => {
     if (!name || !roomId) return;
-    onJoinRoom({ name, roomId, isCreator: false });
+    sessionStorage.setItem('whiteboard_username', name.trim());
+    onJoinRoom({ name, roomId, isCreator: false, userId });
   };
 
   return (

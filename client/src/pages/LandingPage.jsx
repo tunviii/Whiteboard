@@ -42,7 +42,7 @@ export default function LandingPage() {
   const navigate = useNavigate();
 
   const handleJoinRoom = (data) => {
-    navigate(`/room/${data.roomId}`, { state: { name: data.name } });
+    navigate(`/room/${data.roomId}`, { state: { username: data.name, userId: data.userId } });
   };
   const floatingItems = [
     { icon: Pencil, color: '#F59E0B', size: 64, top: '15%', left: '10%', delay: '0s', rotation: -15 },

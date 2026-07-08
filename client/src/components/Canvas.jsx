@@ -19,7 +19,7 @@ const getSvgPathFromStroke = (stroke) => {
 // Distance helper for eraser
 const dist = (p1, p2) => Math.sqrt(Math.pow(p2[0] - p1[0], 2) + Math.pow(p2[1] - p1[1], 2));
 
-const Canvas = forwardRef(({ activeTool, strokeWidth, color, socket, roomId, username }, ref) => {
+const Canvas = forwardRef(({ activeTool, strokeWidth, color, socket, roomId, username, identityColor }, ref) => {
   const [history, setHistory] = useState([[]]);
   const [historyStep, setHistoryStep] = useState(0);
   const [currentElement, setCurrentElement] = useState(null);
@@ -192,7 +192,7 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, socket, roomId, use
     setLocalPointer(point);
 
     if (socket && roomId) {
-      socket.emit('cursor-move', { roomId, pointer: point, username, color });
+      socket.emit('cursor-move', { roomId, pointer: point, username, color: identityColor });
     }
 
     if (e.buttons !== 1) return;
@@ -332,11 +332,11 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, socket, roomId, use
           transform={`translate(${localPointer[0]}, ${localPointer[1]})`} 
           className="pointer-events-none"
         >
-          <path d="M0,0 L20,10 L10,13 L6,22 Z" fill={color} stroke="white" strokeWidth="2" />
+          <path d="M0,0 L20,10 L10,13 L6,22 Z" fill={identityColor} stroke="white" strokeWidth="2" />
           <foreignObject x="10" y="20" width="150" height="40">
             <div 
               className="inline-block px-2 py-1 rounded-md text-white text-xs font-bold shadow-md whitespace-nowrap" 
-              style={{ backgroundColor: color }}
+              style={{ backgroundColor: identityColor }}
             >
               {username} (You)
             </div>

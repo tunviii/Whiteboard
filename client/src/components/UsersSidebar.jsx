@@ -28,10 +28,7 @@ export default function UsersSidebar({ isOpen, onClose, users, localSocketId }) 
           <p className="text-slate-500 text-sm text-center mt-4">Waiting for others to join...</p>
         ) : (
           users.map((user, idx) => {
-            // Assign a deterministic pastel color based on the username string
-            const colors = ['#6366F1', '#8B5CF6', '#F59E0B', '#22C55E', '#EF4444', '#3B82F6'];
-            const colorIndex = user.username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
-            const color = colors[colorIndex];
+            const color = user.color || '#6366F1';
             const initials = user.username.substring(0, 2).toUpperCase();
 
             const isLocal = user.socketId === localSocketId;

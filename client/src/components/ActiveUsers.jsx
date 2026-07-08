@@ -31,17 +31,14 @@ export default function ActiveUsers({ users, onToggleSidebar }) {
   const displayUsers = users.slice(0, maxDisplay);
   const extraCount = Math.max(0, users.length - maxDisplay);
 
-  const colors = ['#6366F1', '#8B5CF6', '#F59E0B', '#22C55E', '#EF4444', '#3B82F6'];
-
   return (
     <div className="flex items-center -space-x-3" onClick={onToggleSidebar}>
       {displayUsers.map((user, idx) => {
-        const colorIndex = user.username.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % colors.length;
         return (
           <Avatar 
             key={user.socketId || idx} 
             name={user.username} 
-            color={colors[colorIndex]} 
+            color={user.color || '#6366F1'} 
             zIndex={displayUsers.length - idx} 
           />
         );

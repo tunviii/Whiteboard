@@ -3,6 +3,7 @@ import http from "http";
 import { Server } from "socket.io";
 import cors from "cors";
 
+// rooms[roomId] = { members: { userId: { username, color } }, connections: { socketId: userId } }
 const rooms = {};
 // Store canvas elements for each room
 const roomCanvas = {};
@@ -24,38 +25,63 @@ app.get("/", (req, res) => {
     res.send("Whiteboard Server Running");
 });
 
+function broadcastUsers(roomId) {
+    const room = rooms[roomId];
+    if (!room) return;
+    
+    const activeUsers = Object.entries(room.connections).map(([socketId, userId]) => {
+        const member = room.members[userId];
+        return {
+            socketId,
+            userId,
+            username: member.username,
+            color: member.color
+        };
+    });
+    
+    io.to(roomId).emit("users", activeUsers);
+}
+
 io.on("connection", (socket) => {
     console.log("User Connected:", socket.id);
 
-    socket.on("join-room", ({ roomId, username }) => {
-    socket.join(roomId);
+    socket.on("join-room", ({ roomId, username, userId }) => {
+        socket.join(roomId);
 
-    if (!rooms[roomId]) {
-        rooms[roomId] = [];
-    }
+        if (!rooms[roomId]) {
+            rooms[roomId] = {
+                members: {},
+                connections: {}
+            };
+        }
 
-    const userIndex = rooms[roomId].findIndex(user => user.socketId === socket.id);
+        const room = rooms[roomId];
 
-    if (userIndex !== -1) {
-        rooms[roomId][userIndex].username = username;
-    } else {
-        rooms[roomId].push({
-            socketId: socket.id,
-            username,
-        });
-    }
+        if (!room.members[userId]) {
+            const COLORS = ['#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EC4899'];
+            const colorIndex = Object.keys(room.members).length % COLORS.length;
+            room.members[userId] = {
+                username,
+                color: COLORS[colorIndex]
+            };
+        } else {
+            // Update username in case it changed
+            room.members[userId].username = username;
+        }
 
-    console.log(rooms);
+        room.connections[socket.id] = userId;
 
-    io.to(roomId).emit("users", rooms[roomId]);
-});
+        broadcastUsers(roomId);
+    });
 
     socket.on("leave-room", ({ roomId }) => {
-        if (rooms[roomId]) {
-            rooms[roomId] = rooms[roomId].filter(user => user.socketId !== socket.id);
+        const room = rooms[roomId];
+        if (room && room.connections[socket.id]) {
+            delete room.connections[socket.id];
             socket.leave(roomId);
-            io.to(roomId).emit("users", rooms[roomId]);
-            if (rooms[roomId].length === 0) {
+            broadcastUsers(roomId);
+            
+            if (Object.keys(room.connections).length === 0) {
                 delete rooms[roomId];
                 delete roomCanvas[roomId];
             }
@@ -76,7 +102,6 @@ io.on("connection", (socket) => {
     });
 
     socket.on("draw-progress", ({ roomId, element }) => {
-        // Broadcast ongoing drawing to everyone else in the room
         socket.to(roomId).emit("draw-progress", { socketId: socket.id, element });
     });
 
@@ -100,25 +125,22 @@ io.on("connection", (socket) => {
     // ---------------------
 
     socket.on("disconnect", () => {
+        console.log("User Disconnected:", socket.id);
 
-    console.log("User Disconnected:", socket.id);
+        for (const roomId in rooms) {
+            const room = rooms[roomId];
+            if (room.connections[socket.id]) {
+                delete room.connections[socket.id];
+                broadcastUsers(roomId);
+                socket.to(roomId).emit("draw-end", { socketId: socket.id });
 
-    for (const roomId in rooms) {
-
-        rooms[roomId] = rooms[roomId].filter(
-            user => user.socketId !== socket.id
-        );
-
-        io.to(roomId).emit("users", rooms[roomId]);
-        socket.to(roomId).emit("draw-end", { socketId: socket.id }); // Clean up if they disconnect while drawing
-
-        if (rooms[roomId].length === 0) {
-            delete rooms[roomId];
-            delete roomCanvas[roomId];
+                if (Object.keys(room.connections).length === 0) {
+                    delete rooms[roomId];
+                    delete roomCanvas[roomId];
+                }
+            }
         }
-    }
-
-});
+    });
 });
 
 server.listen(5000, () => {

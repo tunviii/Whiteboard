@@ -13,15 +13,16 @@ export default function Whiteboard() {
   const location = useLocation();
   const navigate = useNavigate();
   
-  // Extract name from location state (passed during navigate), fallback to guest
-  const username = location.state?.name;
+  // Extract name and userId from location state (passed during navigate)
+  const username = location.state?.username;
+  const userId = location.state?.userId;
 
   useEffect(() => {
     // Redirect back to home if no username is provided (direct URL access without login)
-    if (!username) {
+    if (!username || !userId) {
       navigate('/');
     }
-  }, [username, navigate]);
+  }, [username, userId, navigate]);
 
   const [toasts, setToasts] = useState([]);
   const [users, setUsers] = useState([]);
@@ -44,8 +45,8 @@ export default function Whiteboard() {
 
   // Socket Connection and User Tracking
   useEffect(() => {
-    if (roomId && username) {
-      socket.emit('join-room', { roomId, username });
+    if (roomId && username && userId) {
+      socket.emit('join-room', { roomId, username, userId });
       addToast(`Joined room: ${roomId}`, 'success');
     }
 
@@ -59,7 +60,7 @@ export default function Whiteboard() {
       socket.emit('leave-room', { roomId });
       socket.off('users', handleUsersUpdate);
     };
-  }, [roomId, username]);
+  }, [roomId, username, userId]);
 
   const handleClearCanvas = () => {
     if (canvasRef.current) {
@@ -90,6 +91,7 @@ export default function Whiteboard() {
         socket={socket}
         roomId={roomId}
         username={username}
+        identityColor={users.find(u => u.userId === userId)?.color || color}
       />
 
       {/* UI Overlay */}
@@ -97,10 +99,18 @@ export default function Whiteboard() {
         
         {/* Top Section */}
         <div className="flex justify-between items-start pointer-events-auto">
-          {/* Top Left: Logo / Branding (Optional) */}
-          <div className="glass px-4 py-2 rounded-full font-bold text-primary shadow-sm flex items-center space-x-2">
-            <div className="w-3 h-3 rounded-full bg-success"></div>
-            <span>Live</span>
+          {/* Top Left: Logo / Branding / Leave Room */}
+          <div className="flex space-x-3">
+            <button 
+              onClick={() => navigate('/')}
+              className="glass px-4 py-2 rounded-full font-bold text-slate-700 shadow-sm flex items-center space-x-2 hover:bg-slate-100 transition-colors border border-slate-200"
+            >
+              <span>← Leave</span>
+            </button>
+            <div className="glass px-4 py-2 rounded-full font-bold text-primary shadow-sm flex items-center space-x-2">
+              <div className="w-3 h-3 rounded-full bg-success"></div>
+              <span>Live</span>
+            </div>
           </div>
 
           {/* Top Right: Room Info & Active Users */}
