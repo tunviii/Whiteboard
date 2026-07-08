@@ -4,6 +4,8 @@ import { Server } from "socket.io";
 import cors from "cors";
 
 const rooms = {};
+// Store canvas elements for each room
+const roomCanvas = {};
 
 const app = express();
 
@@ -55,9 +57,43 @@ io.on("connection", (socket) => {
             io.to(roomId).emit("users", rooms[roomId]);
             if (rooms[roomId].length === 0) {
                 delete rooms[roomId];
+                delete roomCanvas[roomId];
             }
         }
     });
+
+    // --- Canvas Events ---
+
+    socket.on("sync-request", ({ roomId }) => {
+        if (!roomCanvas[roomId]) {
+            roomCanvas[roomId] = [];
+        }
+        socket.emit("sync-response", roomCanvas[roomId]);
+    });
+
+    socket.on("draw-progress", ({ roomId, element }) => {
+        // Broadcast ongoing drawing to everyone else in the room
+        socket.to(roomId).emit("draw-progress", { socketId: socket.id, element });
+    });
+
+    socket.on("draw-end", ({ roomId }) => {
+        socket.to(roomId).emit("draw-end", { socketId: socket.id });
+    });
+
+    socket.on("add-element", ({ roomId, element }) => {
+        if (!roomCanvas[roomId]) {
+            roomCanvas[roomId] = [];
+        }
+        roomCanvas[roomId].push(element);
+        socket.to(roomId).emit("element-added", element);
+    });
+
+    socket.on("update-elements", ({ roomId, elements }) => {
+        roomCanvas[roomId] = elements;
+        socket.to(roomId).emit("elements-updated", elements);
+    });
+
+    // ---------------------
 
     socket.on("disconnect", () => {
 
@@ -70,9 +106,11 @@ io.on("connection", (socket) => {
         );
 
         io.to(roomId).emit("users", rooms[roomId]);
+        socket.to(roomId).emit("draw-end", { socketId: socket.id }); // Clean up if they disconnect while drawing
 
         if (rooms[roomId].length === 0) {
             delete rooms[roomId];
+            delete roomCanvas[roomId];
         }
     }
 

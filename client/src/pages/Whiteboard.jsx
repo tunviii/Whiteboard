@@ -87,6 +87,8 @@ export default function Whiteboard() {
         activeTool={activeTool}
         strokeWidth={strokeWidth}
         color={color}
+        socket={socket}
+        roomId={roomId}
       />
 
       {/* UI Overlay */}

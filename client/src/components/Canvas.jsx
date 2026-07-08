@@ -1,4 +1,4 @@
-import React, { useState, forwardRef, useImperativeHandle, useRef } from 'react';
+import React, { useState, forwardRef, useImperativeHandle, useRef, useEffect } from 'react';
 import { getStroke } from 'perfect-freehand';
 
 // Helper to convert perfect-freehand stroke points to SVG path data
@@ -19,25 +19,92 @@ const getSvgPathFromStroke = (stroke) => {
 // Distance helper for eraser
 const dist = (p1, p2) => Math.sqrt(Math.pow(p2[0] - p1[0], 2) + Math.pow(p2[1] - p1[1], 2));
 
-const Canvas = forwardRef(({ activeTool, strokeWidth, color }, ref) => {
+const Canvas = forwardRef(({ activeTool, strokeWidth, color, socket, roomId }, ref) => {
   const [history, setHistory] = useState([[]]);
   const [historyStep, setHistoryStep] = useState(0);
   const [currentElement, setCurrentElement] = useState(null);
+  const [remoteElements, setRemoteElements] = useState({});
   const svgRef = useRef(null);
   
   const currentLines = history[historyStep] || [];
 
-  const updateHistory = (newLines) => {
+  // Socket setup
+  useEffect(() => {
+    if (!socket || !roomId) return;
+
+    socket.emit('sync-request', { roomId });
+
+    socket.on('sync-response', (elements) => {
+      setHistory([elements]);
+      setHistoryStep(0);
+    });
+
+    socket.on('draw-progress', ({ socketId, element }) => {
+      setRemoteElements((prev) => ({ ...prev, [socketId]: element }));
+    });
+
+    socket.on('draw-end', ({ socketId }) => {
+      setRemoteElements((prev) => {
+        const updated = { ...prev };
+        delete updated[socketId];
+        return updated;
+      });
+    });
+
+    socket.on('element-added', (element) => {
+      setHistory((prevHistory) => {
+        const step = prevHistory.length - 1;
+        const newLines = [...(prevHistory[step] || []), element];
+        return [...prevHistory, newLines];
+      });
+      setHistoryStep((prev) => prev + 1);
+    });
+
+    socket.on('elements-updated', (elements) => {
+      setHistory((prevHistory) => [...prevHistory, elements]);
+      setHistoryStep((prev) => prev + 1);
+    });
+
+    return () => {
+      socket.off('sync-response');
+      socket.off('draw-progress');
+      socket.off('draw-end');
+      socket.off('element-added');
+      socket.off('elements-updated');
+    };
+  }, [socket, roomId]);
+
+  const updateHistory = (newLines, shouldEmit = false) => {
     const newHistory = history.slice(0, historyStep + 1);
     newHistory.push(newLines);
     setHistory(newHistory);
     setHistoryStep(newHistory.length - 1);
+
+    if (shouldEmit && socket && roomId) {
+      socket.emit('update-elements', { roomId, elements: newLines });
+    }
   };
 
   useImperativeHandle(ref, () => ({
-    clear: () => updateHistory([]),
-    undo: () => setHistoryStep((prev) => Math.max(0, prev - 1)),
-    redo: () => setHistoryStep((prev) => Math.min(history.length - 1, prev + 1)),
+    clear: () => updateHistory([], true),
+    undo: () => {
+      if (historyStep > 0) {
+        const newStep = historyStep - 1;
+        setHistoryStep(newStep);
+        if (socket && roomId) {
+          socket.emit('update-elements', { roomId, elements: history[newStep] });
+        }
+      }
+    },
+    redo: () => {
+      if (historyStep < history.length - 1) {
+        const newStep = historyStep + 1;
+        setHistoryStep(newStep);
+        if (socket && roomId) {
+          socket.emit('update-elements', { roomId, elements: history[newStep] });
+        }
+      }
+    },
     exportAsPNG: () => {
       if (!svgRef.current) return;
       const svgData = new XMLSerializer().serializeToString(svgRef.current);
@@ -50,7 +117,6 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color }, ref) => {
         canvas.width = svgRef.current.clientWidth;
         canvas.height = svgRef.current.clientHeight;
         const ctx = canvas.getContext('2d');
-        // Fill white background
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
         ctx.drawImage(img, 0, 0);
@@ -72,7 +138,6 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color }, ref) => {
       if (line.type === 'freehand') {
         return !line.points.some(p => dist(p, point) < eraserSize);
       } else if (line.type === 'shape') {
-        // Simplified bounding box check for shapes
         const minX = Math.min(line.start[0], line.end[0]);
         const maxX = Math.max(line.start[0], line.end[0]);
         const minY = Math.min(line.start[1], line.end[1]);
@@ -85,7 +150,7 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color }, ref) => {
     });
 
     if (filteredLines.length !== currentLines.length) {
-      updateHistory(filteredLines);
+      updateHistory(filteredLines, true);
     }
   };
 
@@ -100,23 +165,18 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color }, ref) => {
       return;
     }
 
+    let newElement = null;
     if (['pencil', 'brush', 'highlighter'].includes(activeTool)) {
-      setCurrentElement({
-        type: 'freehand',
-        points: [point],
-        tool: activeTool,
-        color,
-        strokeWidth,
-      });
+      newElement = { type: 'freehand', points: [point], tool: activeTool, color, strokeWidth };
     } else if (['line', 'rectangle', 'circle', 'arrow'].includes(activeTool)) {
-      setCurrentElement({
-        type: 'shape',
-        tool: activeTool,
-        start: point,
-        end: point,
-        color,
-        strokeWidth,
-      });
+      newElement = { type: 'shape', tool: activeTool, start: point, end: point, color, strokeWidth };
+    }
+    
+    if (newElement) {
+      setCurrentElement(newElement);
+      if (socket && roomId) {
+        socket.emit('draw-progress', { roomId, element: newElement });
+      }
     }
   };
 
@@ -131,26 +191,37 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color }, ref) => {
 
     if (!currentElement) return;
 
+    let updatedElement = { ...currentElement };
     if (currentElement.type === 'freehand') {
-      setCurrentElement((prev) => ({
-        ...prev,
-        points: [...prev.points, point]
-      }));
+      updatedElement.points = [...currentElement.points, point];
     } else if (currentElement.type === 'shape') {
-      setCurrentElement((prev) => ({
-        ...prev,
-        end: point
-      }));
+      updatedElement.end = point;
+    }
+
+    setCurrentElement(updatedElement);
+    if (socket && roomId) {
+      socket.emit('draw-progress', { roomId, element: updatedElement });
     }
   };
 
   const handlePointerUp = (e) => {
     if (!currentElement) return;
-    updateHistory([...currentLines, currentElement]);
+    
+    if (socket && roomId) {
+      socket.emit('draw-end', { roomId });
+      socket.emit('add-element', { roomId, element: currentElement });
+    }
+    
+    updateHistory([...currentLines, currentElement], false); // Server handles broadcast, we just update local history stack
     setCurrentElement(null);
   };
   
-  const allElements = currentElement ? [...currentLines, currentElement] : currentLines;
+  // Combine local elements with ongoing remote elements
+  const allElements = [
+    ...currentLines, 
+    ...(currentElement ? [currentElement] : []),
+    ...Object.values(remoteElements)
+  ];
 
   return (
     <svg 
@@ -174,6 +245,7 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color }, ref) => {
       </defs>
 
       {allElements.map((el, i) => {
+        if (!el) return null;
         if (el.type === 'freehand') {
           const strokeOptions = {
             size: el.strokeWidth * (el.tool === 'highlighter' ? 3 : el.tool === 'brush' ? 1.5 : 1),
