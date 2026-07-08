@@ -160,6 +160,13 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, socket, roomId, use
     updateHistory(newLines, true);
   };
 
+  useEffect(() => {
+    if (editingElement) {
+      finalizeEditingElement();
+    }
+  }, [activeTool]);
+
+
   useImperativeHandle(ref, () => ({
     clear: () => updateHistory([], true),
     cancelEdit: () => setEditingElement(null),
@@ -242,32 +249,49 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, socket, roomId, use
 
     // If selection tool is active, attempt to select an element for dragging
     if (activeTool === 'selection') {
-      // Find the top-most element that intersects the click point
-      const clickedIndex = currentLines.findLastIndex(line => {
+      // Find the top-most element that intersects the click point (running backwards through array)
+      let clickedIndex = -1;
+      for (let i = currentLines.length - 1; i >= 0; i--) {
+        const line = currentLines[i];
+        let isHit = false;
+        
         if (line.type === 'freehand') {
           // Bounding box for freehand to make selecting easier
-          if (!line.points || line.points.length === 0) return false;
-          const minX = Math.min(...line.points.map(p => p[0]));
-          const maxX = Math.max(...line.points.map(p => p[0]));
-          const minY = Math.min(...line.points.map(p => p[1]));
-          const maxY = Math.max(...line.points.map(p => p[1]));
-          return point[0] >= minX - 10 && point[0] <= maxX + 10 && point[1] >= minY - 10 && point[1] <= maxY + 10;
+          if (line.points && line.points.length > 0) {
+            const minX = Math.min(...line.points.map(p => p[0]));
+            const maxX = Math.max(...line.points.map(p => p[0]));
+            const minY = Math.min(...line.points.map(p => p[1]));
+            const maxY = Math.max(...line.points.map(p => p[1]));
+            isHit = point[0] >= minX - 10 && point[0] <= maxX + 10 && point[1] >= minY - 10 && point[1] <= maxY + 10;
+          }
         } else if (line.type === 'shape') {
           const minX = Math.min(line.start[0], line.end[0]);
           const maxX = Math.max(line.start[0], line.end[0]);
           const minY = Math.min(line.start[1], line.end[1]);
           const maxY = Math.max(line.start[1], line.end[1]);
-          return point[0] >= minX - 10 && point[0] <= maxX + 10 && point[1] >= minY - 10 && point[1] <= maxY + 10;
-        } else if (line.type === 'text' || line.type === 'sticky' || line.type === 'image') {
+          isHit = point[0] >= minX - 10 && point[0] <= maxX + 10 && point[1] >= minY - 10 && point[1] <= maxY + 10;
+        } else if (line.type === 'text') {
+          const w = 500; 
+          const h = 100;  
+          isHit = point[0] >= line.x - 20 && point[0] <= line.x + w && point[1] >= line.y - h && point[1] <= line.y + h/2;
+        } else if (line.type === 'sticky' || line.type === 'image') {
           const w = line.width || (line.type === 'sticky' ? 250 : 200);
           const h = line.height || (line.type === 'sticky' ? 250 : 100);
-          return point[0] >= line.x && point[0] <= line.x + w && point[1] >= line.y && point[1] <= line.y + h;
+          isHit = point[0] >= line.x - 20 && point[0] <= line.x + w + 20 && point[1] >= line.y - 20 && point[1] <= line.y + h + 20;
         }
-        return false;
-      });
+
+        if (isHit) {
+          clickedIndex = i;
+          break;
+        }
+      }
 
       if (clickedIndex !== -1) {
-        e.target.setPointerCapture(e.pointerId);
+        try {
+          e.target.setPointerCapture(e.pointerId);
+        } catch (err) {
+          try { svgRef.current.setPointerCapture(e.pointerId); } catch (e) {}
+        }
         setDraggingElementIndex(clickedIndex);
         const el = currentLines[clickedIndex];
         
@@ -330,11 +354,14 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, socket, roomId, use
         const isInside = point[0] >= minX - eraserSize && point[0] <= maxX + eraserSize &&
                          point[1] >= minY - eraserSize && point[1] <= maxY + eraserSize;
         return !isInside;
-      } else if (line.type === 'text' || line.type === 'sticky' || line.type === 'image') {
-        // Simple bounding box for media elements
+      } else if (line.type === 'text') {
+        const w = 500; 
+        const h = 100;  
+        return !(point[0] >= line.x - 20 && point[0] <= line.x + w && point[1] >= line.y - h && point[1] <= line.y + h/2);
+      } else if (line.type === 'sticky' || line.type === 'image') {
         const w = line.width || (line.type === 'sticky' ? 250 : 200); 
         const h = line.height || (line.type === 'sticky' ? 250 : 100);
-        return !(point[0] >= line.x && point[0] <= line.x + w && point[1] >= line.y && point[1] <= line.y + h);
+        return !(point[0] >= line.x - 20 && point[0] <= line.x + w + 20 && point[1] >= line.y - 20 && point[1] <= line.y + h + 20);
       }
       return true;
     });
@@ -518,7 +545,12 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, socket, roomId, use
               if (tool === 'arrow') return <line key={i} x1={start[0]} y1={start[1]} x2={end[0]} y2={end[1]} stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" markerEnd="url(#arrowhead)" />;
             } else if (el.type === 'text') {
               return (
-                <text key={i} x={el.x} y={el.y} fill={el.color} fontSize="24" fontFamily="Inter, sans-serif" style={{ whiteSpace: 'pre-wrap' }}>
+                <text 
+                  key={i} x={el.x} y={el.y} 
+                  fill={el.color} fontSize="24" fontFamily="Inter, sans-serif"
+                  style={{ pointerEvents: 'none', userSelect: 'none' }}
+                  className="select-none cursor-none"
+                >
                   {el.text.split('\n').map((line, l) => (
                     <tspan x={el.x} dy={l === 0 ? "0em" : "1.2em"} key={l}>{line}</tspan>
                   ))}
@@ -526,9 +558,9 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, socket, roomId, use
               );
             } else if (el.type === 'sticky') {
               return (
-                <foreignObject key={i} x={el.x} y={el.y} width="250" height="250" className="group" style={{ pointerEvents: 'auto' }}>
+                <foreignObject key={i} x={el.x} y={el.y} width="250" height="250" className="group" style={{ pointerEvents: 'none' }}>
                   <div 
-                    className="w-full h-full p-5 shadow-lg rounded-sm rounded-br-3xl text-slate-800 font-sans text-lg leading-relaxed break-words overflow-hidden border border-black/10 transition-all duration-200 group-hover:shadow-2xl relative" 
+                    className="w-full h-full p-5 shadow-lg rounded-sm rounded-br-3xl text-slate-800 font-sans text-lg leading-relaxed break-words overflow-hidden border border-black/10 transition-all duration-200 group-hover:shadow-2xl relative select-none cursor-none" 
                     style={{ 
                       backgroundColor: el.color === '#000000' || el.color === '#FFFFFF' ? '#FEF08A' : el.color,
                       backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 100%)'
@@ -542,7 +574,7 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, socket, roomId, use
                     <button 
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); deleteElement(i); }}
                       onPointerDown={(e) => e.stopPropagation()}
-                      className="absolute top-2 right-2 p-1.5 bg-red-500/50 hover:bg-red-500 text-white rounded-full transition-opacity duration-200 z-50 cursor-pointer shadow-sm"
+                      className="absolute top-2 right-2 p-1.5 bg-red-500/50 hover:bg-red-500 text-white rounded-full transition-opacity duration-200 z-50 cursor-pointer shadow-sm pointer-events-auto"
                       title="Delete Note"
                     >
                       <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
