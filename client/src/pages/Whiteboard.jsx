@@ -56,6 +56,7 @@ export default function Whiteboard() {
     socket.on('users', handleUsersUpdate);
 
     return () => {
+      socket.emit('leave-room', { roomId });
       socket.off('users', handleUsersUpdate);
     };
   }, [roomId, username]);

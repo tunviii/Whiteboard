@@ -49,23 +49,17 @@ export default function LoginPopup({ onJoinRoom }) {
           <div className="relative">
             <input 
               type="text" 
-              placeholder="Enter your name" 
+              placeholder="Your Name (Required)" 
               value={name}
               onChange={(e) => setName(e.target.value)}
               className="w-full px-5 py-3 rounded-xl border border-border bg-white focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all font-sans text-slate-700"
             />
           </div>
 
-          <div className="flex items-center justify-center space-x-4 my-2">
-            <div className="h-px bg-border flex-1"></div>
-            <span className="text-slate-400 font-semibold text-sm">OR</span>
-            <div className="h-px bg-border flex-1"></div>
-          </div>
-
           <div className="relative">
             <input 
               type="text" 
-              placeholder="Enter Room ID" 
+              placeholder="Room ID (Leave blank to create)" 
               value={roomId}
               onChange={(e) => setRoomId(e.target.value)}
               className="w-full px-5 py-3 rounded-xl border border-border bg-white focus:outline-none focus:ring-2 focus:ring-secondary/50 transition-all font-sans text-slate-700"
@@ -74,18 +68,27 @@ export default function LoginPopup({ onJoinRoom }) {
         </div>
 
         {/* Buttons */}
-        <div className="w-full space-y-3 mt-8">
-          <button 
-            onClick={handleCreate}
-            className="w-full py-3 rounded-xl bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] text-white font-bold text-lg hover:shadow-lg hover:-translate-y-1 transition-all duration-300"
-          >
-            Create Room
-          </button>
+        <div className="w-full mt-8">
           <button 
             onClick={handleJoin}
-            className="w-full py-3 rounded-xl bg-white border-2 border-secondary text-secondary font-bold text-lg hover:bg-secondary/5 hover:-translate-y-1 transition-all duration-300"
+            disabled={!name || !roomId}
+            className={`w-full py-3 rounded-xl font-bold text-lg transition-all duration-300 ${!name || !roomId ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : 'bg-gradient-to-r from-[#6366F1] to-[#8B5CF6] text-white hover:shadow-lg hover:-translate-y-1'}`}
           >
             Join Room
+          </button>
+          
+          <div className="flex items-center justify-center space-x-4 my-4">
+            <div className="h-px bg-border flex-1"></div>
+            <span className="text-slate-400 font-semibold text-sm">OR</span>
+            <div className="h-px bg-border flex-1"></div>
+          </div>
+          
+          <button 
+            onClick={handleCreate}
+            disabled={!name}
+            className={`w-full py-3 rounded-xl border-2 font-bold text-lg transition-all duration-300 ${!name ? 'border-slate-200 text-slate-400 cursor-not-allowed' : 'bg-white border-secondary text-secondary hover:bg-secondary/5 hover:-translate-y-1'}`}
+          >
+            Create New Room
           </button>
         </div>
       </div>

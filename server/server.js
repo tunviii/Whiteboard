@@ -32,21 +32,32 @@ io.on("connection", (socket) => {
         rooms[roomId] = [];
     }
 
-    const exists = rooms[roomId].some(
-    user => user.socketId === socket.id
-);
+    const userIndex = rooms[roomId].findIndex(user => user.socketId === socket.id);
 
-if (!exists) {
-    rooms[roomId].push({
-        socketId: socket.id,
-        username,
-    });
-}
+    if (userIndex !== -1) {
+        rooms[roomId][userIndex].username = username;
+    } else {
+        rooms[roomId].push({
+            socketId: socket.id,
+            username,
+        });
+    }
 
     console.log(rooms);
 
     io.to(roomId).emit("users", rooms[roomId]);
 });
+
+    socket.on("leave-room", ({ roomId }) => {
+        if (rooms[roomId]) {
+            rooms[roomId] = rooms[roomId].filter(user => user.socketId !== socket.id);
+            socket.leave(roomId);
+            io.to(roomId).emit("users", rooms[roomId]);
+            if (rooms[roomId].length === 0) {
+                delete rooms[roomId];
+            }
+        }
+    });
 
     socket.on("disconnect", () => {
 
