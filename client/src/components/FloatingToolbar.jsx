@@ -152,45 +152,96 @@ export default function FloatingToolbar({
           
           <div className="w-px h-10 bg-border"></div>
 
-          {/* Stroke Width Slider or Delete Tool */}
-          {['text', 'sticky', 'image'].includes(activeTool) ? (
+          {/* Font Controls or Stroke/Preview Controls */}
+          {['text', 'sticky'].includes(activeTool) ? (
+            <>
+              {/* Font Size */}
+              <div className="flex flex-col space-y-2">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Size</span>
+                <div className="flex space-x-1">
+                  {[{label: 'S', val: 16}, {label: 'M', val: 24}, {label: 'L', val: 32}, {label: 'XL', val: 48}].map(size => (
+                    <button
+                      key={size.label}
+                      onClick={() => onFontSizeChange?.(size.val)}
+                      className={`w-8 h-8 rounded-lg text-sm font-bold flex items-center justify-center transition-colors ${fontSize === size.val ? 'bg-primary text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                    >
+                      {size.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="w-px h-10 bg-border"></div>
+
+              {/* Font Family */}
+              <div className="flex flex-col space-y-2">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Style</span>
+                <div className="flex space-x-1">
+                  {[{label: 'Sans', val: 'Inter, sans-serif'}, {label: 'Serif', val: 'Georgia, serif'}, {label: 'Hand', val: 'Caveat, cursive'}].map(font => (
+                    <button
+                      key={font.label}
+                      onClick={() => onFontFamilyChange?.(font.val)}
+                      style={{ fontFamily: font.val }}
+                      className={`px-3 h-8 rounded-lg text-sm flex items-center justify-center transition-colors ${fontFamily === font.val ? 'bg-primary text-white shadow-md' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                    >
+                      {font.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="w-px h-10 bg-border"></div>
+
+              <button 
+                onClick={onCancelEdit}
+                className="flex items-center space-x-2 text-red-500 hover:text-red-600 font-medium px-4 h-10 mt-auto border rounded-xl border-red-100 self-end"
+                title="Cancel Edit"
+              >
+                <Eraser size={18} />
+                <span className="text-sm">Cancel</span>
+              </button>
+            </>
+          ) : activeTool === 'image' ? (
             <button 
               onClick={onCancelEdit}
-              className="flex items-center space-x-2 text-red-500 hover:text-red-600 font-medium px-4 py-2 border rounded-xl border-red-100"
-              title="Delete Active Note"
+              className="flex items-center space-x-2 text-red-500 hover:text-red-600 font-medium px-4 h-10 mt-auto border rounded-xl border-red-100 self-end"
+              title="Delete Active Image"
             >
               <Eraser size={18} />
-              <span className="text-sm">Delete Note</span>
+              <span className="text-sm">Delete Image</span>
             </button>
           ) : (
-            <div className="flex flex-col space-y-2 min-w-[120px]">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Stroke Width</span>
-              <input 
-                type="range" 
-                min="1" max="20" 
-                value={strokeWidth} 
-                onChange={(e) => onStrokeWidthChange(Number(e.target.value))}
-                className="w-full accent-primary"
-              />
-            </div>
+            <>
+              {/* Stroke Width Slider */}
+              <div className="flex flex-col space-y-2 min-w-[120px]">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Stroke Width</span>
+                <input 
+                  type="range" 
+                  min="1" max="20" 
+                  value={strokeWidth} 
+                  onChange={(e) => onStrokeWidthChange(Number(e.target.value))}
+                  className="w-full accent-primary"
+                />
+              </div>
+
+              <div className="w-px h-10 bg-border"></div>
+
+              {/* Brush Preview */}
+              <div className="flex flex-col space-y-2 items-center min-w-[80px]">
+                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Preview</span>
+                <div className="h-6 w-full flex items-center justify-center bg-slate-50 rounded border border-border overflow-hidden">
+                  <div 
+                    className="rounded-full bg-current transition-all duration-200"
+                    style={{ 
+                      width: `${strokeWidth}px`, 
+                      height: `${strokeWidth}px`,
+                      color: color
+                    }}
+                  ></div>
+                </div>
+              </div>
+            </>
           )}
-
-          <div className="w-px h-10 bg-border"></div>
-
-          {/* Brush Preview */}
-          <div className="flex flex-col space-y-2 items-center min-w-[80px]">
-            <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Preview</span>
-            <div className="h-6 w-full flex items-center justify-center bg-slate-50 rounded border border-border overflow-hidden">
-              <div 
-                className="rounded-full bg-current transition-all duration-200"
-                style={{ 
-                  width: `${strokeWidth}px`, 
-                  height: `${strokeWidth}px`,
-                  color: color
-                }}
-              ></div>
-            </div>
-          </div>
 
         </div>
       </div>

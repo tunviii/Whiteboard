@@ -18,7 +18,7 @@ const getSvgPathFromStroke = (stroke) => {
 
 const dist = (p1, p2) => Math.sqrt(Math.pow(p2[0] - p1[0], 2) + Math.pow(p2[1] - p1[1], 2));
 
-const Canvas = forwardRef(({ activeTool, strokeWidth, color, socket, roomId, username, identityColor }, ref) => {
+const Canvas = forwardRef(({ activeTool, strokeWidth, color, fontSize, fontFamily, socket, roomId, username, identityColor }, ref) => {
   const [history, setHistory] = useState([[]]);
   const [historyStep, setHistoryStep] = useState(0);
   const [currentElement, setCurrentElement] = useState(null);
@@ -314,7 +314,9 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, socket, roomId, use
         x: point[0],
         y: point[1],
         text: '',
-        color: color
+        color: color,
+        fontSize: fontSize,
+        fontFamily: fontFamily
       });
       return;
     }
@@ -547,7 +549,7 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, socket, roomId, use
               return (
                 <text 
                   key={i} x={el.x} y={el.y} 
-                  fill={el.color} fontSize="24" fontFamily="Inter, sans-serif"
+                  fill={el.color} fontSize={el.fontSize || 24} fontFamily={el.fontFamily || "Inter, sans-serif"}
                   style={{ pointerEvents: 'none', userSelect: 'none' }}
                   className="select-none cursor-none"
                 >
@@ -560,10 +562,12 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, socket, roomId, use
               return (
                 <foreignObject key={i} x={el.x} y={el.y} width="250" height="250" className="group" style={{ pointerEvents: 'none' }}>
                   <div 
-                    className="w-full h-full p-5 shadow-lg rounded-sm rounded-br-3xl text-slate-800 font-sans text-lg leading-relaxed break-words overflow-hidden border border-black/10 transition-all duration-200 group-hover:shadow-2xl relative select-none cursor-none" 
+                    className="w-full h-full p-5 shadow-lg rounded-sm rounded-br-3xl text-slate-800 leading-relaxed break-words overflow-hidden border border-black/10 transition-all duration-200 group-hover:shadow-2xl relative select-none cursor-none" 
                     style={{ 
                       backgroundColor: el.color === '#000000' || el.color === '#FFFFFF' ? '#FEF08A' : el.color,
-                      backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 100%)'
+                      backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 100%)',
+                      fontSize: `${el.fontSize || 24}px`,
+                      fontFamily: el.fontFamily || "Inter, sans-serif"
                     }}
                   >
                     <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none">
@@ -624,8 +628,12 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, socket, roomId, use
           {editingElement.type === 'text' ? (
             <textarea
               autoFocus
-              className="w-full h-full bg-transparent border-none outline-none resize-none overflow-hidden"
-              style={{ color: editingElement.color, fontSize: '24px', fontFamily: 'Inter, sans-serif' }}
+              className="w-full h-full bg-transparent border-2 border-primary border-dashed focus:outline-none resize-none overflow-hidden"
+              style={{ 
+                color: editingElement.color, 
+                fontSize: `${editingElement.fontSize || 24}px`, 
+                fontFamily: editingElement.fontFamily || 'Inter, sans-serif'
+              }}
               value={editingElement.text}
               onChange={(e) => setEditingElement({ ...editingElement, text: e.target.value })}
               onKeyDown={(e) => { if(e.key === 'Escape') { finalizeEditingElement(); } }}
@@ -636,7 +644,9 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, socket, roomId, use
               className="w-[250px] h-[250px] p-5 shadow-2xl rounded-sm rounded-br-3xl border-2 border-primary relative" 
               style={{ 
                 backgroundColor: editingElement.color === '#000000' || editingElement.color === '#FFFFFF' ? '#FEF08A' : editingElement.color,
-                backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 100%)'
+                backgroundImage: 'linear-gradient(135deg, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 100%)',
+                fontSize: `${editingElement.fontSize || 24}px`, 
+                fontFamily: editingElement.fontFamily || 'Inter, sans-serif'
               }}
             >
               <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none">
@@ -644,7 +654,7 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, socket, roomId, use
               </div>
               <textarea
                 autoFocus
-                className="w-full h-full bg-transparent border-none outline-none resize-none text-slate-800 font-sans text-lg leading-relaxed relative z-10"
+                className="w-full h-full bg-transparent border-none outline-none resize-none text-slate-800 leading-relaxed relative z-10"
                 value={editingElement.text}
                 onChange={(e) => setEditingElement({ ...editingElement, text: e.target.value })}
                 onKeyDown={(e) => { if(e.key === 'Escape') { finalizeEditingElement(); } }}

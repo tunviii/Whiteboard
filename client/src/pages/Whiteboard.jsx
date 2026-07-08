@@ -32,6 +32,8 @@ export default function Whiteboard() {
   const [activeTool, setActiveTool] = useState('pencil');
   const [strokeWidth, setStrokeWidth] = useState(2);
   const [color, setColor] = useState('#6366F1');
+  const [fontSize, setFontSize] = useState(24);
+  const [fontFamily, setFontFamily] = useState('Inter, sans-serif');
 
   const canvasRef = useRef(null);
 
@@ -92,6 +94,8 @@ export default function Whiteboard() {
         activeTool={activeTool}
         strokeWidth={strokeWidth}
         color={color}
+        fontSize={fontSize}
+        fontFamily={fontFamily}
         socket={socket}
         roomId={roomId}
         username={username}
@@ -137,6 +141,10 @@ export default function Whiteboard() {
           onStrokeWidthChange={setStrokeWidth}
           color={color}
           onColorChange={setColor}
+          fontSize={fontSize}
+          onFontSizeChange={setFontSize}
+          fontFamily={fontFamily}
+          onFontFamilyChange={setFontFamily}
           onClear={handleClearCanvas}
           onUndo={handleUndo}
           onRedo={handleRedo}
