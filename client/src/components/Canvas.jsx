@@ -30,6 +30,10 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, fontSize, fontFamil
   const [draggingElementIndex, setDraggingElementIndex] = useState(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   
+  // Selection and Resize State
+  const [selectedElementIndex, setSelectedElementIndex] = useState(null);
+  const [resizeState, setResizeState] = useState(null);
+  
   // Infinite Canvas State
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -247,8 +251,39 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, fontSize, fontFamil
     
     const point = getPointerPosition(e);
 
-    // If selection tool is active, attempt to select an element for dragging
+    // If selection tool is active, attempt to select an element for dragging or resizing
     if (activeTool === 'selection') {
+      
+      // Check for resize handles first
+      if (selectedElementIndex !== null) {
+        const el = currentLines[selectedElementIndex];
+        if (el && (el.type === 'text' || el.type === 'sticky')) {
+          const w = el.width || (el.type === 'sticky' ? 250 : 300);
+          const h = el.height || (el.type === 'sticky' ? 250 : 100);
+          const handles = {
+            'tl': [el.x, el.y],
+            'tr': [el.x + w, el.y],
+            'bl': [el.x, el.y + h],
+            'br': [el.x + w, el.y + h]
+          };
+          for (const [handle, hp] of Object.entries(handles)) {
+            if (dist(point, hp) < 20 / zoom) { // Scaled hit radius
+              setResizeState({
+                handle,
+                initialPointer: point,
+                initialFontSize: el.fontSize || 24,
+                initialWidth: w,
+                initialHeight: h,
+                initialX: el.x,
+                initialY: el.y
+              });
+              try { e.target.setPointerCapture(e.pointerId); } catch(err){}
+              return; // Stop here, we are resizing
+            }
+          }
+        }
+      }
+
       // Find the top-most element that intersects the click point (running backwards through array)
       let clickedIndex = -1;
       for (let i = currentLines.length - 1; i >= 0; i--) {
@@ -271,9 +306,9 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, fontSize, fontFamil
           const maxY = Math.max(line.start[1], line.end[1]);
           isHit = point[0] >= minX - 10 && point[0] <= maxX + 10 && point[1] >= minY - 10 && point[1] <= maxY + 10;
         } else if (line.type === 'text') {
-          const w = 500; 
-          const h = 100;  
-          isHit = point[0] >= line.x - 20 && point[0] <= line.x + w && point[1] >= line.y - h && point[1] <= line.y + h/2;
+          const w = line.width || 300; 
+          const h = line.height || 100;  
+          isHit = point[0] >= line.x - 10 && point[0] <= line.x + w + 10 && point[1] >= line.y - 10 && point[1] <= line.y + h + 10;
         } else if (line.type === 'sticky' || line.type === 'image') {
           const w = line.width || (line.type === 'sticky' ? 250 : 200);
           const h = line.height || (line.type === 'sticky' ? 250 : 100);
@@ -293,6 +328,7 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, fontSize, fontFamil
           try { svgRef.current.setPointerCapture(e.pointerId); } catch (e) {}
         }
         setDraggingElementIndex(clickedIndex);
+        setSelectedElementIndex(clickedIndex); // Mark as selected
         const el = currentLines[clickedIndex];
         
         // Calculate offset based on element type
@@ -303,6 +339,8 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, fontSize, fontFamil
         } else if (el.type === 'freehand') {
           setDragOffset({ x: point[0] - el.points[0][0], y: point[1] - el.points[0][1] });
         }
+      } else {
+        setSelectedElementIndex(null);
       }
       return;
     }
@@ -313,6 +351,8 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, fontSize, fontFamil
         type: activeTool,
         x: point[0],
         y: point[1],
+        width: activeTool === 'sticky' ? 250 : 300,
+        height: activeTool === 'sticky' ? 250 : 100,
         text: '',
         color: color,
         fontSize: fontSize,
@@ -384,6 +424,45 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, fontSize, fontFamil
       return;
     }
 
+    if (resizeState !== null && selectedElementIndex !== null) {
+      const newLines = [...currentLines];
+      const el = { ...newLines[selectedElementIndex] };
+      const dx = point[0] - resizeState.initialPointer[0];
+      const dy = point[1] - resizeState.initialPointer[1];
+      
+      // Calculate a scale factor based on diagonal distance
+      // For bottom-right, positive dx/dy increases scale
+      const sign = (resizeState.handle === 'br' || resizeState.handle === 'bl') ? 1 : -1;
+      const dragDist = (dx + dy) / 2; // simplified diagonal drag
+      const scale = Math.max(0.2, 1 + (dragDist * sign / 100));
+      
+      el.fontSize = Math.max(8, Math.round(resizeState.initialFontSize * scale));
+      el.width = Math.max(50, resizeState.initialWidth * scale);
+      el.height = Math.max(20, resizeState.initialHeight * scale);
+      
+      // If dragging top/left handles, we must also adjust x/y to keep bottom/right fixed
+      if (resizeState.handle === 'tl') {
+        el.x = resizeState.initialX + (resizeState.initialWidth - el.width);
+        el.y = resizeState.initialY + (resizeState.initialHeight - el.height);
+      } else if (resizeState.handle === 'tr') {
+        el.y = resizeState.initialY + (resizeState.initialHeight - el.height);
+      } else if (resizeState.handle === 'bl') {
+        el.x = resizeState.initialX + (resizeState.initialWidth - el.width);
+      }
+      
+      newLines[selectedElementIndex] = el;
+      
+      // Temporarily update state for fast local rendering without hitting the undo stack yet
+      const newHistory = [...history];
+      newHistory[historyStep] = newLines;
+      setHistory(newHistory);
+      
+      if (socket && roomId) {
+        socket.emit('draw-progress', { roomId, element: el });
+      }
+      return;
+    }
+
     if (draggingElementIndex !== null) {
       // Calculate new position
       const newLines = [...currentLines];
@@ -447,8 +526,16 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, fontSize, fontFamil
   };
 
   const handlePointerUp = (e) => {
+    try { e.target.releasePointerCapture(e.pointerId); } catch(err){}
+    
     if (isPanning) {
       setIsPanning(false);
+      return;
+    }
+
+    if (resizeState !== null) {
+      updateHistory(currentLines, true);
+      setResizeState(null);
       return;
     }
     
@@ -547,16 +634,21 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, fontSize, fontFamil
               if (tool === 'arrow') return <line key={i} x1={start[0]} y1={start[1]} x2={end[0]} y2={end[1]} stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" markerEnd="url(#arrowhead)" />;
             } else if (el.type === 'text') {
               return (
-                <text 
-                  key={i} x={el.x} y={el.y} 
-                  fill={el.color} fontSize={el.fontSize || 24} fontFamily={el.fontFamily || "Inter, sans-serif"}
-                  style={{ pointerEvents: 'none', userSelect: 'none' }}
-                  className="select-none cursor-none"
-                >
-                  {el.text.split('\n').map((line, l) => (
-                    <tspan x={el.x} dy={l === 0 ? "0em" : "1.2em"} key={l}>{line}</tspan>
-                  ))}
-                </text>
+                <foreignObject key={i} x={el.x} y={el.y} width={el.width || 300} height={el.height || 100} style={{ pointerEvents: 'none' }}>
+                  <div 
+                    className="w-full h-full select-none cursor-none overflow-hidden" 
+                    style={{ 
+                      color: el.color, 
+                      fontSize: `${el.fontSize || 24}px`, 
+                      fontFamily: el.fontFamily || "Inter, sans-serif",
+                      whiteSpace: 'pre-wrap',
+                      wordWrap: 'break-word',
+                      lineHeight: '1.2'
+                    }}
+                  >
+                    {el.text}
+                  </div>
+                </foreignObject>
               );
             } else if (el.type === 'sticky') {
               return (
@@ -591,6 +683,22 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, fontSize, fontFamil
             }
             return null;
           })}
+
+          {/* Render Selection Bounding Box & Handles */}
+          {selectedElementIndex !== null && currentLines[selectedElementIndex] && (currentLines[selectedElementIndex].type === 'text' || currentLines[selectedElementIndex].type === 'sticky') && (() => {
+            const el = currentLines[selectedElementIndex];
+            const w = el.width || (el.type === 'sticky' ? 250 : 300);
+            const h = el.height || (el.type === 'sticky' ? 250 : 100);
+            return (
+              <g pointerEvents="none">
+                <rect x={el.x} y={el.y} width={w} height={h} fill="none" stroke="#3B82F6" strokeWidth="2" strokeDasharray="4" />
+                <circle cx={el.x} cy={el.y} r="6" fill="white" stroke="#3B82F6" strokeWidth="2" />
+                <circle cx={el.x + w} cy={el.y} r="6" fill="white" stroke="#3B82F6" strokeWidth="2" />
+                <circle cx={el.x} cy={el.y + h} r="6" fill="white" stroke="#3B82F6" strokeWidth="2" />
+                <circle cx={el.x + w} cy={el.y + h} r="6" fill="white" stroke="#3B82F6" strokeWidth="2" />
+              </g>
+            );
+          })()}
           
           {/* Editing overlay moved OUTSIDE SVG to fix interaction bugs */}
 
@@ -620,8 +728,8 @@ const Canvas = forwardRef(({ activeTool, strokeWidth, color, fontSize, fontFamil
           className="absolute top-0 left-0 z-40 origin-top-left"
           style={{ 
             transform: `translate(${pan.x + editingElement.x * zoom}px, ${pan.y + editingElement.y * zoom}px) scale(${zoom})`,
-            width: '300px',
-            height: '300px'
+            width: `${editingElement.width || (editingElement.type === 'sticky' ? 250 : 300)}px`,
+            height: `${editingElement.height || (editingElement.type === 'sticky' ? 250 : 100)}px`
           }}
           onPointerDown={(e) => e.stopPropagation()} // Stop bubbling to SVG container
         >
