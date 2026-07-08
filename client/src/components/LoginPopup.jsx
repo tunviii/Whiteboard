@@ -34,14 +34,14 @@ export default function LoginPopup({ onJoinRoom }) {
   };
 
   return (
-    <div className="relative">
+    <div className="relative w-full max-w-md mx-auto">
       {/* Decorative background blobs */}
       <div className="absolute -top-6 -left-6 w-24 h-24 bg-secondary rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob"></div>
       <div className="absolute -bottom-6 -right-6 w-24 h-24 bg-primary rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-2000"></div>
       <div className="absolute -bottom-8 left-20 w-24 h-24 bg-accent rounded-full mix-blend-multiply filter blur-xl opacity-70 animate-blob animation-delay-4000"></div>
 
       {/* Main Card */}
-      <div className="glass rounded-[30px] p-8 md:p-10 max-w-md w-full relative z-10 border-t-4 border-t-primary border-l-2 border-l-secondary shadow-[0_20px_50px_rgba(99,102,241,0.2)] flex flex-col items-center">
+      <div className="glass rounded-[30px] p-8 md:p-10 w-full relative z-10 border-t-4 border-t-primary border-l-2 border-l-secondary shadow-[0_20px_50px_rgba(99,102,241,0.2)] flex flex-col items-center">
         
         {/* Header Illustration / Icons */}
         <div className="flex items-center justify-center space-x-3 mb-6 relative">
